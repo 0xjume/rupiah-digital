@@ -1,0 +1,17 @@
+[package]
+name = "confidential_transfer_client"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+solana-client = "1.18"
+solana-sdk = "1.18"
+spl-token-2022 = { version = "0.9", features = ["zk-ops"] }
+solana-zk-token-sdk = "1.18"
+anyhow = "1"
+curve25519-dalek = "3"
+rand = "0.7"
+bs58 = "0.5"
+dirs = "5.0"
+thiserror = "1.0"
+arrayvec = "0.7"
