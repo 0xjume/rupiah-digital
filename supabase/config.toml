@@ -1,0 +1,4 @@
+
+project_id = "tfekwzfeoctfwoeujzkh"
+[functions.xendit-webhook-handler]
+verify_jwt = false
