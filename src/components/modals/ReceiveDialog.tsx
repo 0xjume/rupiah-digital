@@ -11,6 +11,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { QRCodeSVG } from "qrcode.react";
+import { Spinner } from "@/components/ui/spinner";
 
 type ReceiveDialogProps = {
   isOpen: boolean;
@@ -39,12 +41,21 @@ const ReceiveDialog = ({ isOpen, onClose, walletPublicKey }: ReceiveDialogProps)
         
         <div className="space-y-4">
           <div className="bg-muted p-6 rounded-lg flex items-center justify-center">
-            <div className="w-48 h-48 bg-white p-3 rounded">
-              {/* Placeholder for QR code */}
-              <div className="w-full h-full border-2 border-dashed border-gray-300 rounded flex items-center justify-center">
-                <p className="text-center text-sm text-muted-foreground">QR Code for your wallet address</p>
+            {walletPublicKey ? (
+              <div className="w-48 h-48 bg-white p-3 rounded">
+                <QRCodeSVG 
+                  value={walletPublicKey}
+                  size={186}
+                  level="H"
+                  includeMargin={false}
+                  className="w-full h-full"
+                />
               </div>
-            </div>
+            ) : (
+              <div className="w-48 h-48 bg-white p-3 rounded flex items-center justify-center">
+                <Spinner className="h-8 w-8 text-rupiah-blue" />
+              </div>
+            )}
           </div>
           
           <div className="space-y-2">
@@ -77,7 +88,7 @@ const ReceiveDialog = ({ isOpen, onClose, walletPublicKey }: ReceiveDialogProps)
         </div>
         
         <DialogFooter>
-          <Button onClick={handleReceive}>Done</Button>
+          <Button onClick={handleReceive} className="bg-rupiah-blue text-white hover:bg-rupiah-blue/90">Done</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
