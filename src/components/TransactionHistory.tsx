@@ -1,11 +1,11 @@
-
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, ArrowRight, RefreshCw } from "lucide-react";
+import { ArrowLeft, ArrowRight, ArrowUpDown, Coins, Upload, RefreshCw } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import { transactionService } from "@/services/transactionService";
 import { ParsedTransaction } from "@/services/solanaRpcService";
+import { toast } from "sonner";
 
 export interface Transaction extends ParsedTransaction {
   wallet_id?: string;
@@ -48,7 +48,12 @@ const TransactionHistory = ({
     } catch (err: any) {
       console.error("Failed to fetch transactions:", err);
       setError(err.message || "Failed to load transactions");
-      setLocalTransactions([]);
+      // Don't clear transactions if we already have some
+      if (localTransactions.length === 0) {
+        setLocalTransactions([]);
+      } else {
+        toast.error("Could not refresh transactions, showing last available data");
+      }
     } finally {
       setLoading(false);
     }
@@ -65,9 +70,11 @@ const TransactionHistory = ({
       const data = await transactionService.getTransactions(limit);
       setLocalTransactions(data as Transaction[]);
       setError(null);
+      toast.success("Transactions refreshed");
     } catch (err: any) {
       console.error("Failed to refresh transactions:", err);
-      setError(err.message || "Failed to refresh transactions");
+      toast.error("Failed to refresh transactions");
+      // Don't update error state to avoid showing error UI if we have data
     } finally {
       setRefreshing(false);
     }
@@ -93,8 +100,14 @@ const TransactionHistory = ({
         return <ArrowRight className="mr-2 h-4 w-4 text-rupiah-red" />;
       case "receive":
         return <ArrowLeft className="mr-2 h-4 w-4 text-green-500" />;
+      case "swap":
+        return <ArrowUpDown className="mr-2 h-4 w-4 text-blue-500" />;
+      case "mint":
+        return <Coins className="mr-2 h-4 w-4 text-purple-500" />;
+      case "redeem":
+        return <Upload className="mr-2 h-4 w-4 text-orange-500" />;
       default:
-        return null;
+        return <ArrowRight className="mr-2 h-4 w-4 text-gray-500" />;
     }
   };
 
@@ -127,7 +140,8 @@ const TransactionHistory = ({
   const displayError = isUsingExternalState ? externalError : error;
   const displayTransactions = isUsingExternalState ? transactions : localTransactions;
   
-  if (displayLoading) {
+  // Show loading spinner only on initial load, not on refresh
+  if (displayLoading && (!displayTransactions || displayTransactions.length === 0)) {
     return (
       <div className="flex items-center justify-center py-8">
         <Spinner className="h-8 w-8 text-rupiah-blue" />
@@ -135,7 +149,8 @@ const TransactionHistory = ({
     );
   }
   
-  if (displayError) {
+  // Show error only if we have no transactions to display
+  if (displayError && (!displayTransactions || displayTransactions.length === 0)) {
     return (
       <div className="text-center py-8 text-red-500">
         <p className="mb-4">{displayError}</p>

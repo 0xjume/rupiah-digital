@@ -22,6 +22,8 @@ const OverviewTab = ({ onAction }: OverviewTabProps) => {
   
   const togglePrivateTransfers = () => {
     setEnablePrivateTransfers(!enablePrivateTransfers);
+    // In a real app, we would persist this setting
+    toast.success(`Private transfers ${!enablePrivateTransfers ? 'enabled' : 'disabled'}`);
   };
   
   useEffect(() => {
@@ -29,7 +31,7 @@ const OverviewTab = ({ onAction }: OverviewTabProps) => {
     
     // Set up an interval to refresh transactions every 2 minutes
     const intervalId = setInterval(() => {
-      fetchTransactions(false);
+      fetchTransactions(false); // Don't show loading state on auto-refresh
     }, 120000);
     
     // Clean up interval on component unmount
@@ -46,23 +48,33 @@ const OverviewTab = ({ onAction }: OverviewTabProps) => {
       const data = await transactionService.getTransactions(5);
       console.log("Transactions fetched:", data);
       
-      setTransactions(data as Transaction[]);
-      setError(null);
+      if (data && Array.isArray(data)) {
+        setTransactions(data as Transaction[]);
+        setError(null);
+      } else {
+        console.error("Invalid transaction data format:", data);
+        if (transactions.length === 0) {
+          setError("Received invalid transaction data");
+        }
+      }
     } catch (err: any) {
       console.error("Failed to fetch transactions:", err);
       
-      // Show different error messages based on error type
-      if (err.message && err.message.includes("auth")) {
-        setError("Authentication error. Please sign in again.");
-      } else if (err.message && err.message.includes("network")) {
-        setError("Network error. Please check your connection.");
-      } else {
-        setError(err.message || "Failed to load transactions");
-      }
-      
-      // For serious errors, show a toast
-      if (showLoading) {
-        toast.error("Could not load transaction history");
+      // Only set error if we don't already have transactions
+      if (transactions.length === 0) {
+        // Show different error messages based on error type
+        if (err.message && err.message.includes("auth")) {
+          setError("Authentication error. Please sign in again.");
+        } else if (err.message && err.message.includes("network")) {
+          setError("Network error. Please check your connection.");
+        } else {
+          setError(err.message || "Failed to load transactions");
+        }
+        
+        // For serious errors, show a toast
+        if (showLoading) {
+          toast.error("Could not load transaction history");
+        }
       }
     } finally {
       if (showLoading) {

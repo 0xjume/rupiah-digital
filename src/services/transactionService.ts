@@ -1,6 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { solanaRpcService, ParsedTransaction } from "./solanaRpcService";
+import { toast } from "sonner";
 
 // Service for managing transactions
 export const transactionService = {
@@ -25,8 +26,11 @@ export const transactionService = {
             return transactions.map(tx => ({
               ...tx,
               wallet_id: wallet.id,
-              created_at: new Date(tx.timestamp * 1000).toISOString(), // Convert UNIX timestamp to ISO string
+              // Created_at should already be set by solanaRpcService, but ensure it exists
+              created_at: tx.created_at || new Date(tx.timestamp * 1000).toISOString(),
             }));
+          } else {
+            console.log("No transactions returned from Solana, falling back to database");
           }
         } catch (solanaError) {
           console.error("Failed to fetch Solana transactions, falling back to database:", solanaError);
@@ -52,6 +56,14 @@ export const transactionService = {
       const { data: transactions, error } = await query;
       
       if (error) throw error;
+      
+      if (!transactions || transactions.length === 0) {
+        // If no transactions in database either, return mock data for demo purposes
+        return solanaRpcService.getMockTransactions(limit || 10).map(tx => ({
+          ...tx,
+          wallet_id: wallet.id
+        }));
+      }
       
       return transactions;
     } catch (error) {
