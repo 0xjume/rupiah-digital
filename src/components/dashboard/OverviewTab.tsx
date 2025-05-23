@@ -1,11 +1,13 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ArrowRight, Coins, Send, Upload, Download, EyeOff } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import WalletCard from "@/components/WalletCard";
 import TransactionHistory from "@/components/TransactionHistory";
 import RecentActivity from "@/components/RecentActivity";
+import { transactionService } from "@/services/transactionService";
+import { Transaction } from "@/components/TransactionHistory";
 
 type OverviewTabProps = {
   onAction: (action: "mint" | "redeem" | "send" | "receive") => void;
@@ -13,9 +15,34 @@ type OverviewTabProps = {
 
 const OverviewTab = ({ onAction }: OverviewTabProps) => {
   const [enablePrivateTransfers, setEnablePrivateTransfers] = useState(true);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
   const togglePrivateTransfers = () => {
     setEnablePrivateTransfers(!enablePrivateTransfers);
+  };
+  
+  useEffect(() => {
+    fetchTransactions();
+  }, []);
+  
+  const fetchTransactions = async () => {
+    try {
+      setLoading(true);
+      const data = await transactionService.getTransactions(5);
+      setTransactions(data as Transaction[]);
+      setError(null);
+    } catch (err: any) {
+      console.error("Failed to fetch transactions:", err);
+      setError(err.message || "Failed to load transactions");
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const handleRefresh = () => {
+    fetchTransactions();
   };
   
   return (
@@ -74,7 +101,13 @@ const OverviewTab = ({ onAction }: OverviewTabProps) => {
               </Button>
             </CardHeader>
             <CardContent>
-              <TransactionHistory limit={5} />
+              <TransactionHistory 
+                limit={5} 
+                transactions={transactions} 
+                loading={loading} 
+                error={error} 
+                onRefresh={handleRefresh} 
+              />
             </CardContent>
           </Card>
         </div>

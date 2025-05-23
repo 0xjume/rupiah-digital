@@ -1,27 +1,13 @@
 
-import { Connection, PublicKey, ParsedTransactionWithMeta } from "@solana/web3.js";
-import axios from "axios";
+import { Connection, PublicKey } from "@solana/web3.js";
+import { Helius } from "@helius-labs/helius-sdk";
 import { IDRS_TOKEN_ADDRESS } from "./walletService";
 
-// Helius RPC URLs - Using a constant for the API key to avoid duplication
+// Helius API Key
 const HELIUS_API_KEY = "1f92854f-4d68-427f-b658-7131764c2aed";
-const HELIUS_RPC_URL = `https://devnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
-const HELIUS_API_BASE = `https://api-devnet.helius-rpc.com/v0`;
 
-// Interfaces for Helius API responses
-interface HeliusTransaction {
-  signature: string;
-  type: string;
-  timestamp: number;
-  slot: number;
-  fee: number;
-  actions: any[];
-  nativeTransfers: any[];
-  tokenTransfers: any[];
-  accountData: any[];
-  events: any;
-  source: string;
-}
+// Initialize Helius SDK
+const helius = new Helius(HELIUS_API_KEY, "devnet");
 
 export interface ParsedTransaction {
   id: string;
@@ -40,7 +26,7 @@ export interface ParsedTransaction {
 export const solanaRpcService = {
   // Get connection to Solana network
   getConnection() {
-    return new Connection(HELIUS_RPC_URL, "confirmed");
+    return new Connection(`https://devnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`, "confirmed");
   },
 
   // Get account balance
@@ -95,32 +81,30 @@ export const solanaRpcService = {
     }
   },
 
-  // Parse transactions from Helius API
+  // Parse transactions using Helius SDK
   async parseTransactions(signatures: string[]): Promise<ParsedTransaction[]> {
     try {
       if (!signatures.length) return [];
       
-      const response = await axios.post(`${HELIUS_API_BASE}/transactions`, {
-        transactions: signatures,
-        api_key: HELIUS_API_KEY
-      });
-
-      return response.data.map((tx: HeliusTransaction) => {
-        // Extract transfer information
-        const nativeTransfer = tx.nativeTransfers[0]; // Simplified - would need more logic in production
+      // Use Helius SDK to get transaction details
+      const transactions = await helius.rpc.getTransactions(signatures);
+      
+      return transactions.map(tx => {
+        // Extract transfer information from the transaction
+        const nativeTransfer = tx.nativeTransfers?.[0];
         
         return {
           id: tx.signature,
           signature: tx.signature,
-          type: tx.type.toLowerCase(),
-          timestamp: tx.timestamp,
-          fee: tx.fee / 1_000_000_000,
+          type: tx.type?.toLowerCase() || "unknown",
+          timestamp: tx.timestamp || Math.floor(Date.now() / 1000),
+          fee: (tx.fee || 0) / 1_000_000_000, // Convert lamports to SOL
           amount: nativeTransfer ? nativeTransfer.amount / 1_000_000_000 : undefined,
           senderAddress: nativeTransfer ? nativeTransfer.fromUserAccount : undefined,
           recipientAddress: nativeTransfer ? nativeTransfer.toUserAccount : undefined,
           status: "completed", // Assuming confirmed transactions
           isPrivate: false, // Solana transactions are public by default
-          created_at: new Date(tx.timestamp * 1000).toISOString() // Add created_at field for consistency
+          created_at: new Date((tx.timestamp || 0) * 1000).toISOString() // Add created_at for consistency
         };
       });
     } catch (error) {
@@ -129,45 +113,46 @@ export const solanaRpcService = {
     }
   },
 
-  // Get transaction history for an address
+  // Get transaction history using Helius SDK
   async getTransactionHistory(address: string, limit: number = 10): Promise<ParsedTransaction[]> {
     try {
-      const response = await axios.get(
-        `${HELIUS_API_BASE}/addresses/${address}/transactions`,
-        {
-          params: {
-            api_key: HELIUS_API_KEY,
-            limit
-          }
-        }
-      );
-
-      return response.data.map((tx: HeliusTransaction) => {
+      console.log(`Getting transaction history for ${address} with limit ${limit}`);
+      
+      // Use Helius SDK to get transaction history
+      const addressTransactions = await helius.address.getTransactions(address, {
+        limit,
+      });
+      
+      console.log(`Retrieved ${addressTransactions.length} transactions`);
+      
+      return addressTransactions.map(tx => {
         // Extract transfer information
-        const nativeTransfer = tx.nativeTransfers[0]; // Simplified
+        const nativeTransfer = tx.nativeTransfers?.[0];
         
         let type = "unknown";
+        // Determine transaction type based on transaction info
         if (tx.type === "TRANSFER") {
-          // Determine if it's a send or receive based on the address
           if (nativeTransfer && nativeTransfer.fromUserAccount === address) {
             type = "send";
           } else if (nativeTransfer && nativeTransfer.toUserAccount === address) {
             type = "receive";
           }
+        } else if (tx.type) {
+          type = tx.type.toLowerCase();
         }
         
         return {
           id: tx.signature,
           signature: tx.signature,
           type,
-          timestamp: tx.timestamp,
-          fee: tx.fee / 1_000_000_000,
+          timestamp: tx.timestamp || Math.floor(Date.now() / 1000),
+          fee: (tx.fee || 0) / 1_000_000_000,
           amount: nativeTransfer ? nativeTransfer.amount / 1_000_000_000 : undefined,
           senderAddress: nativeTransfer ? nativeTransfer.fromUserAccount : undefined,
           recipientAddress: nativeTransfer ? nativeTransfer.toUserAccount : undefined,
           status: "completed",
           isPrivate: false,
-          created_at: new Date(tx.timestamp * 1000).toISOString() // Add created_at field for consistency
+          created_at: new Date((tx.timestamp || 0) * 1000).toISOString()
         };
       });
     } catch (error) {
