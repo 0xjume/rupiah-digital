@@ -1,14 +1,13 @@
 
 import { Connection, PublicKey } from "@solana/web3.js";
-import { Helius } from "@helius-labs/helius-sdk";
+import axios from "axios";
 import { IDRS_TOKEN_ADDRESS } from "./walletService";
 
 // Helius API Key
 const HELIUS_API_KEY = "1f92854f-4d68-427f-b658-7131764c2aed";
+const HELIUS_API_BASE_URL = "https://api.helius.xyz/v0";
 
-// Initialize Helius SDK
-const helius = new Helius(HELIUS_API_KEY, "devnet");
-
+// Solana RPC service for connecting to Helius endpoints
 export interface ParsedTransaction {
   id: string;
   signature: string;
@@ -22,7 +21,6 @@ export interface ParsedTransaction {
   isPrivate: boolean;
 }
 
-// Solana RPC service for connecting to Helius endpoints
 export const solanaRpcService = {
   // Get connection to Solana network
   getConnection() {
@@ -81,15 +79,23 @@ export const solanaRpcService = {
     }
   },
 
-  // Parse transactions using Helius SDK
+  // Parse transactions using direct API calls to Helius
   async parseTransactions(signatures: string[]): Promise<ParsedTransaction[]> {
     try {
       if (!signatures.length) return [];
       
-      // Use Helius SDK to get transaction details
-      const transactions = await helius.rpc.getTransactions(signatures);
+      // Use direct API call to get transaction details
+      const response = await axios.post(
+        `${HELIUS_API_BASE_URL}/transactions`, 
+        {
+          transactions: signatures,
+          api_key: HELIUS_API_KEY
+        }
+      );
       
-      return transactions.map(tx => {
+      const transactions = response.data;
+      
+      return transactions.map((tx: any) => {
         // Extract transfer information from the transaction
         const nativeTransfer = tx.nativeTransfers?.[0];
         
@@ -113,19 +119,26 @@ export const solanaRpcService = {
     }
   },
 
-  // Get transaction history using Helius SDK
+  // Get transaction history using direct API calls to Helius
   async getTransactionHistory(address: string, limit: number = 10): Promise<ParsedTransaction[]> {
     try {
       console.log(`Getting transaction history for ${address} with limit ${limit}`);
       
-      // Use Helius SDK to get transaction history
-      const addressTransactions = await helius.address.getTransactions(address, {
-        limit,
-      });
+      // Use direct API call to get transaction history
+      const response = await axios.get(
+        `${HELIUS_API_BASE_URL}/addresses/${address}/transactions`, 
+        {
+          params: {
+            api_key: HELIUS_API_KEY,
+            limit
+          }
+        }
+      );
       
-      console.log(`Retrieved ${addressTransactions.length} transactions`);
+      const transactions = response.data;
+      console.log(`Retrieved ${transactions.length} transactions`);
       
-      return addressTransactions.map(tx => {
+      return transactions.map((tx: any) => {
         // Extract transfer information
         const nativeTransfer = tx.nativeTransfers?.[0];
         
