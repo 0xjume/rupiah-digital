@@ -1,11 +1,13 @@
+
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, ArrowRight, ArrowUpDown, Coins, Upload, RefreshCw } from "lucide-react";
+import { ArrowLeft, ArrowRight, ArrowUpDown, Coins, Upload, RefreshCw, AlertCircle } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import { transactionService } from "@/services/transactionService";
 import { ParsedTransaction } from "@/services/solanaRpcService";
 import { toast } from "sonner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export interface Transaction extends ParsedTransaction {
   wallet_id?: string;
@@ -33,6 +35,7 @@ const TransactionHistory = ({
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isMockData, setIsMockData] = useState(false);
   
   // Determine if we're using external state or managing our own
   const isUsingExternalState = transactions !== undefined;
@@ -44,6 +47,10 @@ const TransactionHistory = ({
       setLoading(true);
       const data = await transactionService.getTransactions(limit);
       setLocalTransactions(data as Transaction[]);
+      
+      // Check if this is mock data
+      setIsMockData(data.some(tx => tx.id.toString().startsWith('mock')));
+      
       setError(null);
     } catch (err: any) {
       console.error("Failed to fetch transactions:", err);
@@ -69,6 +76,10 @@ const TransactionHistory = ({
       setRefreshing(true);
       const data = await transactionService.getTransactions(limit);
       setLocalTransactions(data as Transaction[]);
+      
+      // Check if this is mock data
+      setIsMockData(data.some(tx => tx.id.toString().startsWith('mock')));
+      
       setError(null);
       toast.success("Transactions refreshed");
     } catch (err: any) {
@@ -93,6 +104,13 @@ const TransactionHistory = ({
       return () => clearInterval(intervalId);
     }
   }, [limit, isUsingExternalState]);
+  
+  // Check if external data is mock data
+  useEffect(() => {
+    if (isUsingExternalState && transactions) {
+      setIsMockData(transactions.some(tx => tx.id.toString().startsWith('mock')));
+    }
+  }, [isUsingExternalState, transactions]);
 
   const getTransactionIcon = (type: string) => {
     switch (type) {
@@ -161,7 +179,14 @@ const TransactionHistory = ({
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end mb-2">
+      <div className="flex justify-between items-center mb-2">
+        <div>
+          {isMockData && (
+            <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
+              Demo Data
+            </Badge>
+          )}
+        </div>
         <Button 
           variant="ghost" 
           size="sm" 
@@ -173,6 +198,15 @@ const TransactionHistory = ({
           Refresh
         </Button>
       </div>
+      
+      {isMockData && (
+        <Alert className="bg-blue-50 text-blue-800 mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Showing sample transaction data. Real blockchain transactions will appear here once you have activity.
+          </AlertDescription>
+        </Alert>
+      )}
       
       {displayTransactions && displayTransactions.length > 0 ? (
         displayTransactions.map((tx) => (

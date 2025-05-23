@@ -4,13 +4,14 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search } from "lucide-react";
+import { Search, AlertCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { transactionService } from "@/services/transactionService";
 import { Transaction } from "@/components/TransactionHistory";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, ArrowRight, RefreshCw } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const Transactions = () => {
   const [activeTab, setActiveTab] = useState<string>("all");
@@ -20,12 +21,17 @@ const Transactions = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isMockData, setIsMockData] = useState(false);
 
   const fetchTransactions = async () => {
     try {
       setLoading(true);
       const data = await transactionService.getTransactions(20);
       setTransactions(data as Transaction[]);
+      
+      // Check if this is mock data
+      setIsMockData(data.some(tx => tx.id.toString().startsWith('mock')));
+      
       setError(null);
       
       // Apply initial filtering based on active tab
@@ -45,6 +51,9 @@ const Transactions = () => {
       setRefreshing(true);
       const data = await transactionService.getTransactions(20);
       setTransactions(data as Transaction[]);
+      
+      // Check if this is mock data
+      setIsMockData(data.some(tx => tx.id.toString().startsWith('mock')));
       
       // Apply filtering on refresh
       filterTransactionsByType(data as Transaction[]);
@@ -185,7 +194,14 @@ const Transactions = () => {
               
               <TabsContent value={activeTab} className="mt-0">
                 <div className="space-y-4">
-                  <div className="flex justify-end mb-2">
+                  <div className="flex justify-between items-center mb-2">
+                    <div>
+                      {isMockData && (
+                        <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
+                          Demo Data
+                        </Badge>
+                      )}
+                    </div>
                     <Button 
                       variant="ghost" 
                       size="sm" 
@@ -197,12 +213,21 @@ const Transactions = () => {
                       Refresh
                     </Button>
                   </div>
+                  
+                  {isMockData && (
+                    <Alert className="bg-blue-50 text-blue-800 mb-4">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        Showing sample transaction data. Real blockchain transactions will appear here once you have activity.
+                      </AlertDescription>
+                    </Alert>
+                  )}
 
-                  {loading ? (
+                  {loading && !refreshing ? (
                     <div className="flex items-center justify-center py-8">
                       <Spinner className="h-8 w-8 text-rupiah-blue" />
                     </div>
-                  ) : error ? (
+                  ) : error && filteredTransactions.length === 0 ? (
                     <div className="text-center py-8 text-red-500">
                       <p className="mb-4">{error}</p>
                       <Button onClick={fetchTransactions} variant="outline">Try Again</Button>

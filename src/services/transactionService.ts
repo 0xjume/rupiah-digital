@@ -20,9 +20,11 @@ export const transactionService = {
       // Try to fetch real transactions from Solana if we have a public key
       if (wallet.public_key) {
         try {
+          console.log(`Attempting to fetch transactions from Helius for ${wallet.public_key}`);
           const transactions = await solanaRpcService.getTransactionHistory(wallet.public_key, limit || 10);
           
           if (transactions && transactions.length > 0) {
+            console.log(`Successfully received ${transactions.length} transactions from Helius API`);
             return transactions.map(tx => ({
               ...tx,
               wallet_id: wallet.id,
@@ -34,6 +36,7 @@ export const transactionService = {
           }
         } catch (solanaError) {
           console.error("Failed to fetch Solana transactions, falling back to database:", solanaError);
+          toast.error("Could not connect to Solana blockchain. Using local data.");
         }
       }
       
@@ -58,11 +61,19 @@ export const transactionService = {
       if (error) throw error;
       
       if (!transactions || transactions.length === 0) {
+        console.log("No transactions in database, using mock data for demo");
         // If no transactions in database either, return mock data for demo purposes
-        return solanaRpcService.getMockTransactions(limit || 10).map(tx => ({
+        const mockTx = solanaRpcService.getMockTransactions(limit || 10).map(tx => ({
           ...tx,
           wallet_id: wallet.id
         }));
+        
+        toast.info("No transactions found. Showing sample data for demonstration.", {
+          duration: 5000,
+          id: "mock-data-toast" // Prevent duplicates
+        });
+        
+        return mockTx;
       }
       
       return transactions;
