@@ -12,6 +12,12 @@ type OverviewTabProps = {
 };
 
 const OverviewTab = ({ onAction }: OverviewTabProps) => {
+  const [enablePrivateTransfers, setEnablePrivateTransfers] = useState(true);
+  
+  const togglePrivateTransfers = () => {
+    setEnablePrivateTransfers(!enablePrivateTransfers);
+  };
+  
   return (
     <div className="space-y-0">
       <div className="grid gap-6 md:grid-cols-7">
@@ -114,8 +120,11 @@ const OverviewTab = ({ onAction }: OverviewTabProps) => {
                   <EyeOff className="h-4 w-4" />
                   <span className="text-sm">Confidential Transfers</span>
                 </div>
-                <div className="flex items-center h-5 w-11 rounded-full bg-rupiah-red relative cursor-pointer">
-                  <div className="absolute h-4 w-4 rounded-full bg-white right-1" />
+                <div 
+                  className={`flex items-center h-5 w-11 rounded-full ${enablePrivateTransfers ? 'bg-rupiah-red' : 'bg-gray-600'} relative cursor-pointer`}
+                  onClick={togglePrivateTransfers}
+                >
+                  <div className={`absolute h-4 w-4 rounded-full bg-white transition-all ${enablePrivateTransfers ? 'right-1' : 'left-1'}`} />
                 </div>
               </div>
               <p className="text-xs mt-2 text-white/70">
