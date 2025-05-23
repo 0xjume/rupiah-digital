@@ -8,6 +8,7 @@ import TransactionHistory from "@/components/TransactionHistory";
 import RecentActivity from "@/components/RecentActivity";
 import { transactionService } from "@/services/transactionService";
 import { Transaction } from "@/components/TransactionHistory";
+import { toast } from "sonner";
 
 type OverviewTabProps = {
   onAction: (action: "mint" | "redeem" | "send" | "receive") => void;
@@ -25,19 +26,48 @@ const OverviewTab = ({ onAction }: OverviewTabProps) => {
   
   useEffect(() => {
     fetchTransactions();
+    
+    // Set up an interval to refresh transactions every 2 minutes
+    const intervalId = setInterval(() => {
+      fetchTransactions(false);
+    }, 120000);
+    
+    // Clean up interval on component unmount
+    return () => clearInterval(intervalId);
   }, []);
   
-  const fetchTransactions = async () => {
+  const fetchTransactions = async (showLoading: boolean = true) => {
     try {
-      setLoading(true);
+      if (showLoading) {
+        setLoading(true);
+      }
+      
+      console.log("Fetching transactions...");
       const data = await transactionService.getTransactions(5);
+      console.log("Transactions fetched:", data);
+      
       setTransactions(data as Transaction[]);
       setError(null);
     } catch (err: any) {
       console.error("Failed to fetch transactions:", err);
-      setError(err.message || "Failed to load transactions");
+      
+      // Show different error messages based on error type
+      if (err.message && err.message.includes("auth")) {
+        setError("Authentication error. Please sign in again.");
+      } else if (err.message && err.message.includes("network")) {
+        setError("Network error. Please check your connection.");
+      } else {
+        setError(err.message || "Failed to load transactions");
+      }
+      
+      // For serious errors, show a toast
+      if (showLoading) {
+        toast.error("Could not load transaction history");
+      }
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     }
   };
   
