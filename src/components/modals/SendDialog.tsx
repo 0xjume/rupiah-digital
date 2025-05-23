@@ -18,7 +18,8 @@ import { Switch } from "@/components/ui/switch";
 import { Spinner } from "@/components/ui/spinner";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { transactionService } from "@/services/transactionService";
-import { AlertCircle, CheckCircle, HelpCircle } from "lucide-react";
+import { walletService } from "@/services/walletService";
+import { AlertCircle, CheckCircle, HelpCircle, RefreshCw } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 // Form schema
@@ -39,6 +40,8 @@ type SendDialogProps = {
 const SendDialog = ({ isOpen, onClose, walletBalance = 0 }: SendDialogProps) => {
   const [sending, setSending] = useState(false);
   const [sendComplete, setSendComplete] = useState(false);
+  const [actualBalance, setActualBalance] = useState<number | null>(null);
+  const [loadingBalance, setLoadingBalance] = useState(false);
 
   const sendForm = useForm<z.infer<typeof sendFormSchema>>({
     resolver: zodResolver(sendFormSchema),
@@ -54,16 +57,41 @@ const SendDialog = ({ isOpen, onClose, walletBalance = 0 }: SendDialogProps) => 
     if (!isOpen) {
       sendForm.reset();
       setSendComplete(false);
+    } else {
+      // Fetch actual balance when dialog opens
+      fetchActualBalance();
     }
   }, [isOpen, sendForm]);
+
+  // Fetch the actual IDRS balance from the blockchain
+  const fetchActualBalance = async () => {
+    try {
+      setLoadingBalance(true);
+      const wallet = await walletService.getUserWallet();
+      
+      if (wallet && wallet.public_key) {
+        const { idrsBalance } = await walletService.getWalletInfo(wallet.public_key);
+        setActualBalance(idrsBalance);
+      } else {
+        setActualBalance(walletBalance || 0);
+      }
+    } catch (error) {
+      console.error('Error fetching actual balance:', error);
+      setActualBalance(walletBalance || 0);
+    } finally {
+      setLoadingBalance(false);
+    }
+  };
   
   const handleSend = async (values: z.infer<typeof sendFormSchema>) => {
     try {
       setSending(true);
       
+      const currentBalance = actualBalance !== null ? actualBalance : walletBalance || 0;
+      
       // Validate amount against wallet balance
-      if (Number(values.amount) > (walletBalance || 0)) {
-        toast.error(`Insufficient balance. You have ${walletBalance} IDRS available.`);
+      if (Number(values.amount) > currentBalance) {
+        toast.error(`Insufficient balance. You have ${currentBalance.toLocaleString()} IDRS available.`);
         setSending(false);
         return;
       }
@@ -136,8 +164,27 @@ const SendDialog = ({ isOpen, onClose, walletBalance = 0 }: SendDialogProps) => 
                       <FormControl>
                         <Input placeholder="0" {...field} type="number" min="0" />
                       </FormControl>
-                      <FormDescription>
-                        Available balance: {walletBalance?.toLocaleString() || '0'} IDRS
+                      <FormDescription className="flex items-center gap-2">
+                        Available balance: {loadingBalance ? <Spinner className="h-3 w-3" /> : (actualBalance?.toLocaleString() || walletBalance?.toLocaleString() || '0')} IDRS
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-5 w-5 ml-1" 
+                              onClick={(e) => {
+                                e.preventDefault();
+                                fetchActualBalance();
+                              }}
+                              disabled={loadingBalance}
+                            >
+                              <RefreshCw className="h-3 w-3 text-muted-foreground" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Refresh balance</p>
+                          </TooltipContent>
+                        </Tooltip>
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
