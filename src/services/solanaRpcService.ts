@@ -1,11 +1,12 @@
+
 import { Connection, PublicKey, ParsedTransactionWithMeta } from "@solana/web3.js";
 import axios from "axios";
 import { IDRS_TOKEN_ADDRESS } from "./walletService";
 
-// Helius RPC URLs
-const HELIUS_RPC_URL = "https://devnet.helius-rpc.com/?api-key=1f92854f-4d68-427f-b658-7131764c2aed";
-const HELIUS_API_BASE = "https://api-devnet.helius-rpc.com/v0";
+// Helius RPC URLs - Using a constant for the API key to avoid duplication
 const HELIUS_API_KEY = "1f92854f-4d68-427f-b658-7131764c2aed";
+const HELIUS_RPC_URL = `https://devnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
+const HELIUS_API_BASE = `https://api-devnet.helius-rpc.com/v0`;
 
 // Interfaces for Helius API responses
 interface HeliusTransaction {
@@ -118,7 +119,8 @@ export const solanaRpcService = {
           senderAddress: nativeTransfer ? nativeTransfer.fromUserAccount : undefined,
           recipientAddress: nativeTransfer ? nativeTransfer.toUserAccount : undefined,
           status: "completed", // Assuming confirmed transactions
-          isPrivate: false // Solana transactions are public by default
+          isPrivate: false, // Solana transactions are public by default
+          created_at: new Date(tx.timestamp * 1000).toISOString() // Add created_at field for consistency
         };
       });
     } catch (error) {
@@ -164,7 +166,8 @@ export const solanaRpcService = {
           senderAddress: nativeTransfer ? nativeTransfer.fromUserAccount : undefined,
           recipientAddress: nativeTransfer ? nativeTransfer.toUserAccount : undefined,
           status: "completed",
-          isPrivate: false
+          isPrivate: false,
+          created_at: new Date(tx.timestamp * 1000).toISOString() // Add created_at field for consistency
         };
       });
     } catch (error) {

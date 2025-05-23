@@ -14,34 +14,56 @@ export interface Transaction extends ParsedTransaction {
 
 interface TransactionHistoryProps {
   limit?: number;
+  activeTab?: string;
+  transactions?: Transaction[];
+  loading?: boolean;
+  error?: string | null;
+  onRefresh?: () => void;
 }
 
-const TransactionHistory = ({ limit }: TransactionHistoryProps) => {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+const TransactionHistory = ({ 
+  limit = 10,
+  activeTab = "all", 
+  transactions,
+  loading: externalLoading,
+  error: externalError,
+  onRefresh
+}: TransactionHistoryProps) => {
+  const [localTransactions, setLocalTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Determine if we're using external state or managing our own
+  const isUsingExternalState = transactions !== undefined;
 
   const fetchTransactions = async () => {
+    if (isUsingExternalState) return;
+    
     try {
       setLoading(true);
       const data = await transactionService.getTransactions(limit);
-      setTransactions(data as Transaction[]);
+      setLocalTransactions(data as Transaction[]);
       setError(null);
     } catch (err: any) {
       console.error("Failed to fetch transactions:", err);
       setError(err.message || "Failed to load transactions");
-      setTransactions([]);
+      setLocalTransactions([]);
     } finally {
       setLoading(false);
     }
   };
   
   const refreshTransactions = async () => {
+    if (isUsingExternalState) {
+      if (onRefresh) onRefresh();
+      return;
+    }
+    
     try {
       setRefreshing(true);
       const data = await transactionService.getTransactions(limit);
-      setTransactions(data as Transaction[]);
+      setLocalTransactions(data as Transaction[]);
       setError(null);
     } catch (err: any) {
       console.error("Failed to refresh transactions:", err);
@@ -52,16 +74,18 @@ const TransactionHistory = ({ limit }: TransactionHistoryProps) => {
   };
 
   useEffect(() => {
-    fetchTransactions();
-    
-    // Set up polling to refresh transaction data every 60 seconds
-    const intervalId = setInterval(() => {
-      refreshTransactions();
-    }, 60000);
-    
-    // Clean up interval on unmount
-    return () => clearInterval(intervalId);
-  }, [limit]);
+    if (!isUsingExternalState) {
+      fetchTransactions();
+      
+      // Set up polling to refresh transaction data every 60 seconds
+      const intervalId = setInterval(() => {
+        refreshTransactions();
+      }, 60000);
+      
+      // Clean up interval on unmount
+      return () => clearInterval(intervalId);
+    }
+  }, [limit, isUsingExternalState]);
 
   const getTransactionIcon = (type: string) => {
     switch (type) {
@@ -98,7 +122,12 @@ const TransactionHistory = ({ limit }: TransactionHistoryProps) => {
     return date.toLocaleDateString();
   };
   
-  if (loading) {
+  // Determine which state to use
+  const displayLoading = isUsingExternalState ? externalLoading : loading;
+  const displayError = isUsingExternalState ? externalError : error;
+  const displayTransactions = isUsingExternalState ? transactions : localTransactions;
+  
+  if (displayLoading) {
     return (
       <div className="flex items-center justify-center py-8">
         <Spinner className="h-8 w-8 text-rupiah-blue" />
@@ -106,11 +135,11 @@ const TransactionHistory = ({ limit }: TransactionHistoryProps) => {
     );
   }
   
-  if (error) {
+  if (displayError) {
     return (
       <div className="text-center py-8 text-red-500">
-        <p className="mb-4">{error}</p>
-        <Button onClick={fetchTransactions} variant="outline">Try Again</Button>
+        <p className="mb-4">{displayError}</p>
+        <Button onClick={isUsingExternalState ? onRefresh : fetchTransactions} variant="outline">Try Again</Button>
       </div>
     );
   }
@@ -121,7 +150,7 @@ const TransactionHistory = ({ limit }: TransactionHistoryProps) => {
         <Button 
           variant="ghost" 
           size="sm" 
-          onClick={refreshTransactions} 
+          onClick={isUsingExternalState ? onRefresh : refreshTransactions} 
           disabled={refreshing}
           className="text-sm flex items-center gap-1"
         >
@@ -130,8 +159,8 @@ const TransactionHistory = ({ limit }: TransactionHistoryProps) => {
         </Button>
       </div>
       
-      {transactions.length > 0 ? (
-        transactions.map((tx) => (
+      {displayTransactions && displayTransactions.length > 0 ? (
+        displayTransactions.map((tx) => (
           <div key={tx.id || tx.signature} className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/20 transition-colors cursor-pointer">
             <div className="flex items-center">
               {getTransactionIcon(tx.type)}

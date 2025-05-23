@@ -1,59 +1,152 @@
 
 import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
-import TransactionHistory from "@/components/TransactionHistory";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { transactionService } from "@/services/transactionService";
 import { Transaction } from "@/components/TransactionHistory";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, ArrowRight, RefreshCw } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
 
 const Transactions = () => {
   const [activeTab, setActiveTab] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchTransactions = async (type?: string) => {
+  const fetchTransactions = async () => {
     try {
       setLoading(true);
-      const transactions = await transactionService.getTransactions(20);
-      
-      // Filter transactions if a specific type is selected
-      if (type && type !== "all") {
-        setFilteredTransactions(
-          (transactions as Transaction[]).filter(tx => tx.type === type.toLowerCase())
-        );
-      } else {
-        setFilteredTransactions(transactions as Transaction[]);
-      }
-      
+      const data = await transactionService.getTransactions(20);
+      setTransactions(data as Transaction[]);
       setError(null);
+      
+      // Apply initial filtering based on active tab
+      filterTransactionsByType(data as Transaction[]);
     } catch (err: any) {
       console.error("Failed to fetch transactions:", err);
       setError(err.message || "Failed to load transactions");
+      setTransactions([]);
       setFilteredTransactions([]);
     } finally {
       setLoading(false);
     }
   };
 
+  const refreshTransactions = async () => {
+    try {
+      setRefreshing(true);
+      const data = await transactionService.getTransactions(20);
+      setTransactions(data as Transaction[]);
+      
+      // Apply filtering on refresh
+      filterTransactionsByType(data as Transaction[]);
+      setError(null);
+    } catch (err: any) {
+      console.error("Failed to refresh transactions:", err);
+      setError(err.message || "Failed to refresh transactions");
+    } finally {
+      setRefreshing(false);
+    }
+  };
+  
+  // Filter transactions based on type and search query
+  const filterTransactionsByType = (transactionsToFilter: Transaction[]) => {
+    let filtered = transactionsToFilter;
+    
+    // Apply type filter if not "all"
+    if (activeTab !== "all") {
+      filtered = filtered.filter(tx => tx.type === activeTab.toLowerCase());
+    }
+    
+    // Apply search query if present
+    if (searchQuery) {
+      filtered = filtered.filter(tx => 
+        (tx.id && tx.id.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (tx.signature && tx.signature.toLowerCase().includes(searchQuery.toLowerCase()))
+      );
+    }
+    
+    setFilteredTransactions(filtered);
+  };
+  
+  // Handle search input changes
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const query = e.target.value;
+    setSearchQuery(query);
+    filterTransactionsByType(transactions);
+  };
+
   useEffect(() => {
-    // When tab changes, fetch filtered transactions
-    const type = activeTab !== "all" ? activeTab : undefined;
-    fetchTransactions(type);
+    // Fetch transactions when component mounts
+    fetchTransactions();
+    
+    // Set up polling to refresh transaction data every 60 seconds
+    const intervalId = setInterval(() => {
+      refreshTransactions();
+    }, 60000);
+    
+    // Clean up interval on unmount
+    return () => clearInterval(intervalId);
+  }, []);
+  
+  // When tab changes, reapply filters
+  useEffect(() => {
+    filterTransactionsByType(transactions);
   }, [activeTab]);
+  
+  // When search query changes, reapply filters
+  useEffect(() => {
+    filterTransactionsByType(transactions);
+  }, [searchQuery]);
+  
+  const getTransactionIcon = (type: string) => {
+    switch (type) {
+      case "send":
+        return <ArrowRight className="mr-2 h-4 w-4 text-rupiah-red" />;
+      case "receive":
+        return <ArrowLeft className="mr-2 h-4 w-4 text-green-500" />;
+      case "swap":
+        return <RefreshCw className="mr-2 h-4 w-4 text-blue-500" />;
+      case "mint":
+        return <Badge variant="outline" className="mr-2 bg-purple-500/10 text-purple-700 border-purple-500/30">Mint</Badge>;
+      case "redeem":
+        return <Badge variant="outline" className="mr-2 bg-orange-500/10 text-orange-700 border-orange-500/30">Redeem</Badge>;
+      default:
+        return null;
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "completed":
+        return <Badge className="bg-green-500/20 text-green-700 border-green-500/30">Completed</Badge>;
+      case "pending":
+        return <Badge className="bg-yellow-500/20 text-yellow-700 border-yellow-500/30">Pending</Badge>;
+      case "failed":
+        return <Badge className="bg-red-500/20 text-red-700 border-red-500/30">Failed</Badge>;
+      default:
+        return null;
+    }
+  };
+  
+  const formatAddress = (address?: string) => {
+    if (!address) return "";
+    if (address.length <= 10) return address;
+    return `${address.substring(0, 4)}...${address.substring(address.length - 4)}`;
+  };
+  
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString();
+  };
 
   return (
     <DashboardLayout>
@@ -66,7 +159,7 @@ const Transactions = () => {
             <Input
               placeholder="Search by transaction ID..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={handleSearchChange}
               className="pl-10 w-full md:w-64"
             />
           </div>
@@ -91,13 +184,73 @@ const Transactions = () => {
               </TabsList>
               
               <TabsContent value={activeTab} className="mt-0">
-                {loading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rupiah-blue"></div>
+                <div className="space-y-4">
+                  <div className="flex justify-end mb-2">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={refreshTransactions} 
+                      disabled={refreshing}
+                      className="text-sm flex items-center gap-1"
+                    >
+                      {refreshing ? <Spinner className="h-3 w-3 mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+                      Refresh
+                    </Button>
                   </div>
-                ) : (
-                  <TransactionHistory limit={20} />
-                )}
+
+                  {loading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Spinner className="h-8 w-8 text-rupiah-blue" />
+                    </div>
+                  ) : error ? (
+                    <div className="text-center py-8 text-red-500">
+                      <p className="mb-4">{error}</p>
+                      <Button onClick={fetchTransactions} variant="outline">Try Again</Button>
+                    </div>
+                  ) : filteredTransactions.length > 0 ? (
+                    filteredTransactions.map((tx) => (
+                      <div key={tx.id || tx.signature} className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/20 transition-colors cursor-pointer">
+                        <div className="flex items-center">
+                          {getTransactionIcon(tx.type)}
+                          <div>
+                            <div className="font-medium">
+                              {tx.type.charAt(0).toUpperCase() + tx.type.slice(1)}
+                              {tx.isPrivate && (
+                                <Badge variant="outline" className="ml-2 text-xs py-0">
+                                  Private
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              {formatDate(tx.created_at)} • {
+                                tx.type === "send" ? 
+                                  formatAddress(tx.recipientAddress) : 
+                                  tx.type === "receive" ? 
+                                    formatAddress(tx.senderAddress) :
+                                    tx.type === "swap" ? 
+                                      "SOL to IDRS" :
+                                      tx.type === "redeem" ?
+                                        "BCA ****4567" : "IDRS Mint"
+                              }
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="text-right">
+                          <div className="font-medium">
+                            {tx.type === "send" || tx.type === "redeem" ? "-" : "+"}
+                            {tx.amount?.toLocaleString() || "0"} IDRS
+                          </div>
+                          <div className="mt-1">{getStatusBadge(tx.status)}</div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No transactions found
+                    </div>
+                  )}
+                </div>
               </TabsContent>
             </Tabs>
           </CardContent>
